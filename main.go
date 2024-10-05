@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -154,7 +155,26 @@ func getFilesToReview(config Config, commitInfo string) []string {
 		os.Exit(1)
 	}
 
-	return files
+	// Filter out non-text files
+	validFiles := []string{}
+	for _, file := range files {
+		if isTextFile(file) {
+			validFiles = append(validFiles, file)
+		}
+	}
+
+	return validFiles
+}
+
+func isTextFile(filename string) bool {
+	extensions := []string{".txt", ".md", ".go", ".py", ".js", ".html", ".css", ".json", ".xml", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf"}
+	ext := strings.ToLower(filepath.Ext(filename))
+	for _, validExt := range extensions {
+		if ext == validExt {
+			return true
+		}
+	}
+	return false
 }
 
 func readFiles(files []string) map[string]string {
