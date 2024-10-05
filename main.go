@@ -67,6 +67,7 @@ func loadConfig() Config {
 	filesPrompt := flag.String("files-prompt", "", "Custom files prompt")
 	reviewPrompt := flag.String("review-prompt", "", "Custom review prompt")
 	envFile := flag.String("env", "", "Path to custom .env file")
+	_ = flag.String("review-hash", "", "Git hash to review (optional)")
 	var reviewHashes multiStringFlag
 	flag.Var(&reviewHashes, "review-hashes", "Two git hashes to review against each other (optional)")
 
@@ -129,11 +130,11 @@ func getEnv(key, fallback string) string {
 
 func getCommitInfo(config Config) string {
 	var hash1, hash2 string
-	reviewHash := flag.Lookup("review-hash").Value.(flag.Getter).Get().(string)
-	reviewHashes := flag.Lookup("review-hashes").Value.(flag.Getter).Get().([]string)
+	reviewHash := flag.Lookup("review-hash").Value.String()
+	reviewHashes := flag.Lookup("review-hashes").Value.(*multiStringFlag)
 
-	if len(reviewHashes) == 2 {
-		hash1, hash2 = reviewHashes[0], reviewHashes[1]
+	if len(*reviewHashes) == 2 {
+		hash1, hash2 = (*reviewHashes)[0], (*reviewHashes)[1]
 	} else if reviewHash != "" {
 		hash1 = reviewHash
 		hash2 = getParentCommit(hash1)
