@@ -72,12 +72,12 @@ func loadConfig() Config {
 	}
 
 	config := Config{
-		BaseURL:    getEnv("OR_BASE", ""),
-		Token:      getEnv("OR_TOKEN", ""),
-		LowLLM:     getEnv("OR_LOW", ""),
-		HighLLM:    getEnv("OR_HIGH", ""),
-		Webhook:    *webhook,
-		System:     *system,
+		BaseURL: getEnv("OR_BASE", ""),
+		Token:   getEnv("OR_TOKEN", ""),
+		LowLLM:  getEnv("OR_LOW", ""),
+		HighLLM: getEnv("OR_HIGH", ""),
+		Webhook: *webhook,
+		System:  *system,
 	}
 
 	config.FilesPrompt = getPrompt("filesprompt.txt", *filesPrompt)
@@ -138,19 +138,19 @@ func getLastCommitInfo() string {
 
 func getFilesToReview(config Config, commitInfo string) []string {
 	prompt := fmt.Sprintf(config.FilesPrompt, commitInfo)
-	
+
 	response := callLLM(config, config.LowLLM, prompt)
-	
+
 	// Remove backticks if present
 	response = strings.Trim(response, "`")
-	
+
 	var files []string
 	err := json.Unmarshal([]byte(response), &files)
 	if err != nil {
 		fmt.Println("Error parsing LLM response:", err)
 		os.Exit(1)
 	}
-	
+
 	return files
 }
 
@@ -209,8 +209,7 @@ func callLLM(config Config, model string, prompt string) string {
 }
 
 func sendWebhook(url string, content string) {
-	requestBody, _ := json.Marshal(map[string]string{"content": content})
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
+	resp, err := http.Post(url, "text/plain", bytes.NewBufferString(content))
 	if err != nil {
 		fmt.Println("Error sending webhook:", err)
 		return
