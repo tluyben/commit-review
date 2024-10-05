@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -252,7 +253,22 @@ func addFileLinks(review string, files []string) string {
 		}
 		gitURL := strings.TrimSpace(string(gitConfig))
 		gitURL = strings.TrimSuffix(gitURL, ".git")
-		fileURL := fmt.Sprintf("%s/blob/main/%s", gitURL, file)
+		parsedURL, err := url.Parse(gitURL)
+		if err != nil {
+			fmt.Println("Error parsing git URL:", err)
+			continue
+		}
+		if parsedURL.Scheme == "" {
+			parsedURL.Scheme = "https"
+		}
+		if parsedURL.Host == "" {
+			parts := strings.Split(parsedURL.Path, ":")
+			if len(parts) == 2 {
+				parsedURL.Host = parts[0]
+				parsedURL.Path = parts[1]
+			}
+		}
+		fileURL := fmt.Sprintf("%s/blob/main/%s", parsedURL.String(), file)
 		linksSection += fmt.Sprintf("- [%s](%s)\n", file, fileURL)
 	}
 	return review + linksSection
