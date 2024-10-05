@@ -67,7 +67,7 @@ func loadConfig() Config {
 	filesPrompt := flag.String("files-prompt", "", "Custom files prompt")
 	reviewPrompt := flag.String("review-prompt", "", "Custom review prompt")
 	envFile := flag.String("env", "", "Path to custom .env file")
-	_ = flag.String("review-hash", "", "Git hash to review (optional)")
+	// reviewHash := flag.String("review-hash", "", "Git hash to review (optional)")
 	var reviewHashes multiStringFlag
 	flag.Var(&reviewHashes, "review-hashes", "Two git hashes to review against each other (optional)")
 
@@ -130,18 +130,20 @@ func getEnv(key, fallback string) string {
 
 func getCommitInfo(config Config) string {
 	var hash1, hash2 string
-	reviewHash := flag.Lookup("review-hash").Value.String()
+	// reviewHash := flag.Lookup("review-hash").Value.String()
 	reviewHashes := flag.Lookup("review-hashes").Value.(*multiStringFlag)
 
 	if len(*reviewHashes) == 2 {
 		hash1, hash2 = (*reviewHashes)[0], (*reviewHashes)[1]
-	} else if reviewHash != "" {
-		hash1 = reviewHash
+	} else if len(*reviewHashes) == 1 {
+		hash1 = (*reviewHashes)[0]
 		hash2 = getParentCommit(hash1)
 	} else {
 		hash1 = getLastCommitHash()
 		hash2 = getParentCommit(hash1)
 	}
+
+	fmt.Println("Reviewing commits:", hash1, hash2)
 
 	diff := getDiff(hash1, hash2)
 	commitMessage := getCommitMessage(hash1)
@@ -163,7 +165,7 @@ func getParentCommit(hash string) string {
 	cmd := exec.Command("git", "rev-parse", hash+"^")
 	output, err := cmd.Output()
 	if err != nil {
-		fmt.Println("Error getting parent commit:", err)
+		fmt.Println("Error getting parent commit:", cmd, err)
 		os.Exit(1)
 	}
 	return strings.TrimSpace(string(output))
