@@ -271,5 +271,9 @@ func addFileLinks(review string, files []string) string {
 		fileURL := fmt.Sprintf("%s/blob/main/%s", parsedURL.String(), file)
 		linksSection += fmt.Sprintf("- [%s](%s)\n", file, fileURL)
 	}
-	return review + linksSection
+
+	if len(files) > 0 {
+		return review + linksSection
+	}
+	return review
 }
