@@ -1,0 +1,5 @@
+Given the following commit information, please provide a JSON array of files that need to be reviewed:
+
+%s
+
+Your response should only contain the JSON array of file names, nothing else.

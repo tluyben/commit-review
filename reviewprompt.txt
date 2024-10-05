@@ -1,0 +1,14 @@
+Please provide a critical review of the following commit and file changes:
+
+Commit Info:
+%s
+
+File Contents:
+%s
+
+Please include:
+- What does this commit entail?
+- What does it solve?
+- What bugs does it introduce, if any?
+- What can be improved?
+- List any security issues, style issues, and other problems.
