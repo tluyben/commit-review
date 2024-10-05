@@ -2,17 +2,18 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"strings"
 
 	"github.com/joho/godotenv"
+	"github.com/sashabaranov/go-openai"
 )
 
 //go:embed filesprompt.txt reviewprompt.txt
@@ -182,55 +183,29 @@ func getCriticalReview(config Config, commitInfo string, fileContents map[string
 }
 
 func callLLM(config Config, model string, prompt string) string {
-	url := fmt.Sprintf("%s/v1/chat/completions", config.BaseURL)
-	requestBody, _ := json.Marshal(map[string]interface{}{
-		"model": model,
-		"messages": []map[string]string{
-			{"role": "user", "content": prompt},
+	_config := openai.DefaultConfig(config.Token)
+	_config.BaseURL = config.BaseURL
+	client := openai.NewClientWithConfig(_config)
+
+	resp, err := client.CreateChatCompletion(
+		context.Background(),
+		openai.ChatCompletionRequest{
+			Model: model,
+			Messages: []openai.ChatCompletionMessage{
+				{
+					Role:    openai.ChatMessageRoleUser,
+					Content: prompt,
+				},
+			},
 		},
-	})
+	)
 
-	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(requestBody))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+config.Token)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Error calling LLM:", err)
-		os.Exit(1)
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	var result map[string]interface{}
-	json.Unmarshal(body, &result)
-
-	choices, ok := result["choices"].([]interface{})
-	if !ok || len(choices) == 0 {
-		fmt.Println("Error: Invalid response format from LLM")
-		os.Exit(1)
+		fmt.Printf("ChatCompletion error: %v\n", err)
+		return ""
 	}
 
-	firstChoice, ok := choices[0].(map[string]interface{})
-	if !ok {
-		fmt.Println("Error: Invalid choice format in LLM response")
-		os.Exit(1)
-	}
-
-	message, ok := firstChoice["message"].(map[string]interface{})
-	if !ok {
-		fmt.Println("Error: Invalid message format in LLM response")
-		os.Exit(1)
-	}
-
-	content, ok := message["content"].(string)
-	if !ok {
-		fmt.Println("Error: Invalid content format in LLM response")
-		os.Exit(1)
-	}
-
-	return content
+	return resp.Choices[0].Message.Content
 }
 
 func sendWebhook(url string, content string) {
