@@ -11,6 +11,7 @@ This Go program automates the process of reviewing Git commits using AI language
 - 🎛️ Customizable prompts via text files
 - 🖨️ Prints review results to stdout
 - 🚀 Optionally sends review results to a webhook
+- 🖥️ Cross-compilation support for Linux AMD64
 
 ## 🛠️ Installation
 
@@ -62,6 +63,12 @@ Use the provided Makefile to build the project:
 
 ```
 make build
+```
+
+To build for Linux AMD64:
+
+```
+make build-linux-amd64
 ```
 
 ## 🧪 Testing
