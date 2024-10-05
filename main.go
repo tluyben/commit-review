@@ -8,7 +8,6 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -245,30 +244,36 @@ func sendWebhook(url string, content string) {
 
 func addFileLinks(review string, files []string) string {
 	linksSection := "\n\nChanged Files:\n"
+	gitConfig, err := exec.Command("git", "config", "--get", "remote.origin.url").Output()
+	if err != nil {
+		fmt.Println("Error getting git remote URL:", err)
+		return review
+	}
+
+	gitURL := strings.TrimSpace(string(gitConfig))
+	gitURL = strings.TrimSuffix(gitURL, ".git")
+
+	var baseURL string
+	if strings.HasPrefix(gitURL, "git@") {
+		// SSH-style URL
+		parts := strings.SplitN(gitURL, ":", 2)
+		if len(parts) != 2 {
+			fmt.Println("Invalid SSH-style Git URL")
+			return review
+		}
+		domain := strings.TrimPrefix(parts[0], "git@")
+		path := parts[1]
+		baseURL = fmt.Sprintf("https://%s/%s", domain, path)
+	} else if strings.HasPrefix(gitURL, "https://") {
+		// HTTPS-style URL
+		baseURL = gitURL
+	} else {
+		fmt.Println("Unsupported Git URL format")
+		return review
+	}
+
 	for _, file := range files {
-		gitConfig, err := exec.Command("git", "config", "--get", "remote.origin.url").Output()
-		if err != nil {
-			fmt.Println("Error getting git remote URL:", err)
-			continue
-		}
-		gitURL := strings.TrimSpace(string(gitConfig))
-		gitURL = strings.TrimSuffix(gitURL, ".git")
-		parsedURL, err := url.Parse(gitURL)
-		if err != nil {
-			fmt.Println("Error parsing git URL:", err)
-			continue
-		}
-		if parsedURL.Scheme == "" {
-			parsedURL.Scheme = "https"
-		}
-		if parsedURL.Host == "" {
-			parts := strings.Split(parsedURL.Path, ":")
-			if len(parts) == 2 {
-				parsedURL.Host = parts[0]
-				parsedURL.Path = parts[1]
-			}
-		}
-		fileURL := fmt.Sprintf("%s/blob/main/%s", parsedURL.String(), file)
+		fileURL := fmt.Sprintf("%s/blob/main/%s", baseURL, file)
 		linksSection += fmt.Sprintf("- [%s](%s)\n", file, fileURL)
 	}
 
