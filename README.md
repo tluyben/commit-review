@@ -12,6 +12,7 @@ This Go program automates the process of reviewing Git commits using AI language
 - 🖨️ Prints review results to stdout
 - 🚀 Optionally sends review results to a webhook
 - 🖥️ Cross-compilation support for Linux AMD64
+- 🔗 Adds links to changed files in the review output
 
 ## 🛠️ Installation
 

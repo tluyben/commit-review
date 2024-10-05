@@ -45,6 +45,9 @@ func main() {
 	// Ask the HIGH LLM for a critical review
 	review := getCriticalReview(config, commitInfo, fileContents)
 
+	// Add links to changed files
+	review = addFileLinks(review, filesToReview)
+
 	// Print the result to stdout
 	fmt.Println(review)
 
@@ -217,4 +220,12 @@ func sendWebhook(url string, content string) {
 	defer resp.Body.Close()
 
 	fmt.Println("Webhook sent successfully")
+}
+
+func addFileLinks(review string, files []string) string {
+	linksSection := "\n\nChanged Files:\n"
+	for _, file := range files {
+		linksSection += fmt.Sprintf("- [%s](https://github.com/YourUsername/commit-review/blob/main/%s): Brief description of changes\n", file, file)
+	}
+	return review + linksSection
 }
