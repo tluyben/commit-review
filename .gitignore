@@ -9,4 +9,3 @@ env.local
 *.out
 /vendor/
 /Godeps/
-commit-review
