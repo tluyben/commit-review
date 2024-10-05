@@ -34,8 +34,8 @@ type Config struct {
 func main() {
 	config := loadConfig()
 
-	// Get the last commit and its diff
-	commitInfo := getLastCommitInfo()
+	// Get the commit info based on flags
+	commitInfo := getCommitInfo(config)
 
 	// Ask the LOW LLM for files to review
 	filesToReview := getFilesToReview(config, commitInfo)
@@ -67,6 +67,8 @@ func loadConfig() Config {
 	filesPrompt := flag.String("files-prompt", "", "Custom files prompt")
 	reviewPrompt := flag.String("review-prompt", "", "Custom review prompt")
 	envFile := flag.String("env", "", "Path to custom .env file")
+	var reviewHashes multiStringFlag
+	flag.Var(&reviewHashes, "review-hashes", "Two git hashes to review against each other (optional)")
 
 	flag.Parse()
 
@@ -76,18 +78,28 @@ func loadConfig() Config {
 	}
 
 	config := Config{
-		BaseURL: getEnv("OR_BASE", ""),
-		Token:   getEnv("OR_TOKEN", ""),
-		LowLLM:  getEnv("OR_LOW", ""),
-		HighLLM: getEnv("OR_HIGH", ""),
-		Webhook: *webhook,
-		System:  *system,
+		BaseURL:      getEnv("OR_BASE", ""),
+		Token:        getEnv("OR_TOKEN", ""),
+		LowLLM:       getEnv("OR_LOW", ""),
+		HighLLM:      getEnv("OR_HIGH", ""),
+		Webhook:      *webhook,
+		System:       *system,
+		FilesPrompt:  getPrompt("filesprompt.txt", *filesPrompt),
+		ReviewPrompt: getPrompt("reviewprompt.txt", *reviewPrompt),
 	}
 
-	config.FilesPrompt = getPrompt("filesprompt.txt", *filesPrompt)
-	config.ReviewPrompt = getPrompt("reviewprompt.txt", *reviewPrompt)
-
 	return config
+}
+
+type multiStringFlag []string
+
+func (m *multiStringFlag) String() string {
+	return strings.Join(*m, ",")
+}
+
+func (m *multiStringFlag) Set(value string) error {
+	*m = append(*m, value)
+	return nil
 }
 
 func getPrompt(embeddedFile, customPrompt string) string {
@@ -115,29 +127,65 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-func getLastCommitInfo() string {
-	cmd := exec.Command("git", "log", "-1", "--pretty=format:%H")
-	lastCommitHash, err := cmd.Output()
+func getCommitInfo(config Config) string {
+	var hash1, hash2 string
+	reviewHash := flag.Lookup("review-hash").Value.(flag.Getter).Get().(string)
+	reviewHashes := flag.Lookup("review-hashes").Value.(flag.Getter).Get().([]string)
+
+	if len(reviewHashes) == 2 {
+		hash1, hash2 = reviewHashes[0], reviewHashes[1]
+	} else if reviewHash != "" {
+		hash1 = reviewHash
+		hash2 = getParentCommit(hash1)
+	} else {
+		hash1 = getLastCommitHash()
+		hash2 = getParentCommit(hash1)
+	}
+
+	diff := getDiff(hash1, hash2)
+	commitMessage := getCommitMessage(hash1)
+
+	return fmt.Sprintf("Commit: %s\n\nMessage: %s\n\nDiff:\n%s", hash1, commitMessage, diff)
+}
+
+func getLastCommitHash() string {
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	output, err := cmd.Output()
 	if err != nil {
 		fmt.Println("Error getting last commit hash:", err)
 		os.Exit(1)
 	}
+	return strings.TrimSpace(string(output))
+}
 
-	cmd = exec.Command("git", "diff", string(lastCommitHash)+"^!", "--", ".")
-	diff, err := cmd.Output()
+func getParentCommit(hash string) string {
+	cmd := exec.Command("git", "rev-parse", hash+"^")
+	output, err := cmd.Output()
+	if err != nil {
+		fmt.Println("Error getting parent commit:", err)
+		os.Exit(1)
+	}
+	return strings.TrimSpace(string(output))
+}
+
+func getDiff(hash1, hash2 string) string {
+	cmd := exec.Command("git", "diff", hash2, hash1, "--", ".")
+	output, err := cmd.Output()
 	if err != nil {
 		fmt.Println("Error getting commit diff:", err)
 		os.Exit(1)
 	}
+	return string(output)
+}
 
-	cmd = exec.Command("git", "log", "-1", "--pretty=format:%B")
-	commitMessage, err := cmd.Output()
+func getCommitMessage(hash string) string {
+	cmd := exec.Command("git", "log", "-1", "--pretty=format:%B", hash)
+	output, err := cmd.Output()
 	if err != nil {
 		fmt.Println("Error getting commit message:", err)
 		os.Exit(1)
 	}
-
-	return fmt.Sprintf("Commit: %s\n\nMessage: %s\n\nDiff:\n%s", lastCommitHash, commitMessage, diff)
+	return string(output)
 }
 
 func getFilesToReview(config Config, commitInfo string) []string {
@@ -244,7 +292,7 @@ func sendWebhook(url string, content string) {
 
 func addFileLinks(review string, files []string) string {
 	linksSection := "\n\nChanged Files:\n"
-	
+
 	// Get the git remote URL
 	gitConfig, err := exec.Command("git", "config", "--get", "remote.origin.url").Output()
 	if err != nil {

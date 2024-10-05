@@ -4,7 +4,7 @@ This Go program automates the process of reviewing Git commits using AI language
 
 ## 🌟 Features
 
-- 📊 Analyzes the latest Git commit
+- 📊 Analyzes Git commits
 - 🤖 Uses AI to select files for review
 - 📝 Generates detailed code reviews
 - 🔒 Supports environment variables and .env files
@@ -13,6 +13,7 @@ This Go program automates the process of reviewing Git commits using AI language
 - 🚀 Optionally sends review results to a webhook
 - 🖥️ Cross-compilation support for Linux AMD64
 - 🔗 Adds links to changed files in the review output
+- 🔍 Supports reviewing specific commit hashes
 
 ## 🛠️ Installation
 
@@ -52,6 +53,8 @@ go run main.go [options]
 - `-files-prompt` (optional): Path to a custom files prompt (default: `filesprompt.txt`)
 - `-review-prompt` (optional): Path to a custom review prompt (default: `reviewprompt.txt`)
 - `-env` (optional): Path to a custom .env file
+- `-review-hash` (optional): Git hash to review
+- `-review-hashes` (optional): Two git hashes to review against each other
 
 ## 📄 Customizing Prompts
 
