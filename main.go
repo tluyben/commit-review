@@ -206,7 +206,31 @@ func callLLM(config Config, model string, prompt string) string {
 	var result map[string]interface{}
 	json.Unmarshal(body, &result)
 
-	return result["choices"].([]interface{})[0].(map[string]interface{})["message"].(map[string]interface{})["content"].(string)
+	choices, ok := result["choices"].([]interface{})
+	if !ok || len(choices) == 0 {
+		fmt.Println("Error: Invalid response format from LLM")
+		os.Exit(1)
+	}
+
+	firstChoice, ok := choices[0].(map[string]interface{})
+	if !ok {
+		fmt.Println("Error: Invalid choice format in LLM response")
+		os.Exit(1)
+	}
+
+	message, ok := firstChoice["message"].(map[string]interface{})
+	if !ok {
+		fmt.Println("Error: Invalid message format in LLM response")
+		os.Exit(1)
+	}
+
+	content, ok := message["content"].(string)
+	if !ok {
+		fmt.Println("Error: Invalid content format in LLM response")
+		os.Exit(1)
+	}
+
+	return content
 }
 
 func sendWebhook(url string, content string) {
