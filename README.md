@@ -49,6 +49,7 @@ go run main.go [options]
 - `-system` (optional): System prompt to prepend to the review prompt
 - `-files-prompt` (optional): Path to a custom files prompt (default: `filesprompt.txt`)
 - `-review-prompt` (optional): Path to a custom review prompt (default: `reviewprompt.txt`)
+- `-env` (optional): Path to a custom .env file
 
 ## 📄 Customizing Prompts
 

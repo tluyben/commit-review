@@ -54,16 +54,21 @@ func main() {
 }
 
 func loadConfig() Config {
-	if envFile := os.Getenv("ENVFILE"); envFile != "" {
-		godotenv.Load(envFile)
-	}
+	// Load .env file if it exists
+	godotenv.Load()
 
 	webhook := flag.String("webhook", "", "Webhook URL (optional)")
 	system := flag.String("system", "", "System prompt")
 	filesPrompt := flag.String("files-prompt", "", "Custom files prompt")
 	reviewPrompt := flag.String("review-prompt", "", "Custom review prompt")
+	envFile := flag.String("env", "", "Path to custom .env file")
 
 	flag.Parse()
+
+	// Load custom .env file if provided
+	if *envFile != "" {
+		godotenv.Load(*envFile)
+	}
 
 	config := Config{
 		BaseURL:    getEnv("OR_BASE", ""),
