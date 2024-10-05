@@ -1,0 +1,12 @@
+.env
+env.local
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+/vendor/
+/Godeps/
+commit-review
