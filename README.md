@@ -9,7 +9,8 @@ This Go program automates the process of reviewing Git commits using AI language
 - 📝 Generates detailed code reviews
 - 🔒 Supports environment variables and .env files
 - 🎛️ Customizable prompts via text files
-- 🚀 Sends review results to a webhook
+- 🖨️ Prints review results to stdout
+- 🚀 Optionally sends review results to a webhook
 
 ## 🛠️ Installation
 
@@ -39,12 +40,12 @@ Set up the following environment variables or use a `.env` file:
 Run the program with the following command:
 
 ```
-go run main.go -webhook https://your-webhook-url.com [options]
+go run main.go [options]
 ```
 
 ### 🚩 Options
 
-- `-webhook` (required): URL to send the review results (webhook)
+- `-webhook` (optional): URL to send the review results (webhook)
 - `-system` (optional): System prompt to prepend to the review prompt
 - `-files-prompt` (optional): Path to a custom files prompt (default: `filesprompt.txt`)
 - `-review-prompt` (optional): Path to a custom review prompt (default: `reviewprompt.txt`)

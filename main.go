@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -19,12 +19,12 @@ import (
 var embeddedFiles embed.FS
 
 type Config struct {
-	BaseURL    string
-	Token      string
-	LowLLM     string
-	HighLLM    string
-	Webhook    string
-	System     string
+	BaseURL      string
+	Token        string
+	LowLLM       string
+	HighLLM      string
+	Webhook      string
+	System       string
 	FilesPrompt  string
 	ReviewPrompt string
 }
@@ -44,8 +44,13 @@ func main() {
 	// Ask the HIGH LLM for a critical review
 	review := getCriticalReview(config, commitInfo, fileContents)
 
-	// Send the result to the webhook
-	sendWebhook(config.Webhook, review)
+	// Print the result to stdout
+	fmt.Println(review)
+
+	// Send the result to the webhook if available
+	if config.Webhook != "" {
+		sendWebhook(config.Webhook, review)
+	}
 }
 
 func loadConfig() Config {
@@ -53,17 +58,12 @@ func loadConfig() Config {
 		godotenv.Load(envFile)
 	}
 
-	webhook := flag.String("webhook", "", "Webhook URL (mandatory)")
+	webhook := flag.String("webhook", "", "Webhook URL (optional)")
 	system := flag.String("system", "", "System prompt")
 	filesPrompt := flag.String("files-prompt", "", "Custom files prompt")
 	reviewPrompt := flag.String("review-prompt", "", "Custom review prompt")
 
 	flag.Parse()
-
-	if *webhook == "" {
-		fmt.Println("Error: -webhook parameter is mandatory")
-		os.Exit(1)
-	}
 
 	config := Config{
 		BaseURL:    getEnv("OR_BASE", ""),
@@ -82,7 +82,7 @@ func loadConfig() Config {
 
 func getPrompt(embeddedFile, customPrompt string) string {
 	if customPrompt != "" {
-		content, err := ioutil.ReadFile(customPrompt)
+		content, err := os.ReadFile(customPrompt)
 		if err != nil {
 			fmt.Printf("Error reading custom prompt file: %v\n", err)
 			os.Exit(1)
@@ -151,7 +151,7 @@ func getFilesToReview(config Config, commitInfo string) []string {
 func readFiles(files []string) map[string]string {
 	contents := make(map[string]string)
 	for _, file := range files {
-		content, err := ioutil.ReadFile(file)
+		content, err := os.ReadFile(file)
 		if err != nil {
 			fmt.Printf("Error reading file %s: %v\n", file, err)
 			continue
@@ -197,7 +197,7 @@ func callLLM(config Config, model string, prompt string) string {
 	}
 	defer resp.Body.Close()
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 	var result map[string]interface{}
 	json.Unmarshal(body, &result)
 
@@ -209,7 +209,7 @@ func sendWebhook(url string, content string) {
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
 	if err != nil {
 		fmt.Println("Error sending webhook:", err)
-		os.Exit(1)
+		return
 	}
 	defer resp.Body.Close()
 
