@@ -245,7 +245,15 @@ func sendWebhook(url string, content string) {
 func addFileLinks(review string, files []string) string {
 	linksSection := "\n\nChanged Files:\n"
 	for _, file := range files {
-		linksSection += fmt.Sprintf("- [%s](https://github.com/YourUsername/commit-review/blob/main/%s): Brief description of changes\n", file, file)
+		gitConfig, err := exec.Command("git", "config", "--get", "remote.origin.url").Output()
+		if err != nil {
+			fmt.Println("Error getting git remote URL:", err)
+			continue
+		}
+		gitURL := strings.TrimSpace(string(gitConfig))
+		gitURL = strings.TrimSuffix(gitURL, ".git")
+		fileURL := fmt.Sprintf("%s/blob/main/%s", gitURL, file)
+		linksSection += fmt.Sprintf("- [%s](%s)\n", file, fileURL)
 	}
 	return review + linksSection
 }
