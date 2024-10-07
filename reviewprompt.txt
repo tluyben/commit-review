@@ -12,3 +12,6 @@ Please include:
 - What bugs does it introduce, if any?
 - What can be improved?
 - List any security issues, style issues, and other problems.
+
+Make the Review succinct, business like and formal sounding. Be more negative than positive as that incentivizes people to fix things. 
+Use language as if you are doing a code review for a company. 
