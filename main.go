@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"context"
 	"embed"
-	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -39,8 +39,14 @@ func main() {
 	// Get the commit info based on flags
 	commitInfo := getCommitInfo(config)
 
+	// fmt.Println(commitInfo)
+	// os.Exit(1)
+
 	// Ask the LOW LLM for files to review
 	filesToReview := getFilesToReview(config, commitInfo)
+
+	// fmt.Println("files to review", filesToReview)
+	// os.Exit(1)
 
 	// Read the files content
 	fileContents := readFiles(filesToReview)
@@ -84,33 +90,61 @@ func getCommitMessage(hash string) string {
 		fmt.Println("Error getting commit message:", err)
 		os.Exit(1)
 	}
-	return string(output)
+	return fmt.Sprintf("%s %s", hash, string(output))
 }
 
-func getFilesToReview(config Config, commitInfo string) []string {
-	prompt := fmt.Sprintf(config.FilesPrompt, commitInfo)
+func getFilesToReview(config Config, commitInfo CommitInfo) []string {
+	// we can use this git log --name-only --pretty=oneline --full-index HEAD^^..HEAD | grep -vE '^[0-9a-f]{40} ' | sort | uniq
 
-	response := callLLM(config, config.LowLLM, prompt)
-
-	// Remove backticks if present
-	response = strings.Trim(response, "`")
-
-	var files []string
-	err := json.Unmarshal([]byte(response), &files)
+	cmd := exec.Command("git", "log", "--name-only", "--pretty=format:", commitInfo.Hash2+".."+commitInfo.Hash1)
+	output, err := cmd.Output()
 	if err != nil {
-		fmt.Println("Error parsing LLM response:", err)
-		os.Exit(1)
+		fmt.Println("Error getting files to review:", err)
+		return []string{}
 	}
+
+	// fmt.Println("files to review", string(output))	
+	files := strings.Split(string(output), "\n")
 
 	// Filter out non-text files
 	validFiles := []string{}
 	for _, file := range files {
+		// skip empty files
+		if (file == "") {
+			continue
+		}
+
 		if isTextFile(file) {
 			validFiles = append(validFiles, file)
 		}
 	}
 
 	return validFiles
+
+
+	// prompt := fmt.Sprintf(config.FilesPrompt, commitInfo)
+
+	// response := callLLM(config, config.LowLLM, prompt)
+
+	// // Remove backticks if present
+	// response = strings.Trim(response, "`")
+
+	// var files []string
+	// err := json.Unmarshal([]byte(response), &files)
+	// if err != nil {
+	// 	fmt.Println("Error parsing LLM response:", err)
+	// 	os.Exit(1)
+	// }
+
+	// // Filter out non-text files
+	// validFiles := []string{}
+	// for _, file := range files {
+	// 	if isTextFile(file) {
+	// 		validFiles = append(validFiles, file)
+	// 	}
+	// }
+
+	// return validFiles
 }
 
 func callLLM(config Config, model string, prompt string) string {
@@ -182,7 +216,13 @@ func (m *multiStringFlag) Set(value string) error {
 	return nil
 }
 
-func getCommitInfo(config Config) string {
+type CommitInfo struct {
+	Message string
+	Hash1 string
+	Hash2 string
+}
+
+func getCommitInfo(config Config) CommitInfo {
 	var hash1, hash2 string
 	// reviewHash := flag.Lookup("review-hash").Value.String()
 	reviewHashes := flag.Lookup("review-hashes").Value.(*multiStringFlag)
@@ -197,12 +237,28 @@ func getCommitInfo(config Config) string {
 		hash2 = getParentCommit(hash1)
 	}
 
-	fmt.Println("Reviewing commits:", hash1, hash2)
+	fmt.Println("Naive reviewing commits:", hash1, hash2)
+
+	commitMessages := getCommitMessages(hash1, hash2, len(*reviewHashes) == 2)
+
+	// we don't even have to check for the commit messages , as we know there are == 2, otherwise we would've exited
+	commitMessage := ""
+	parts := strings.Split(commitMessages[0], " ")
+	hash1 = parts[0]
+	commitMessage += parts[1] + "\n"
+	parts = strings.Split(commitMessages[1], " ")
+	hash2 = parts[0]
+	commitMessage += parts[1] + "\n"
 
 	diff := getDiff(hash1, hash2)
-	commitMessage := getCommitMessage(hash1)
+	
+	fmt.Println("Commits to review:", commitMessages)
 
-	return fmt.Sprintf("Commit: %s\n\nMessage: %s\n\nDiff:\n%s", hash1, commitMessage, diff)
+	return CommitInfo{
+		Message: fmt.Sprintf("Commit: %s\n\nMessage: %s\n\nDiff:\n%s", hash1, commitMessage, diff),
+		Hash1:   hash1,
+		Hash2:   hash2,
+	}
 }
 
 func getDiff(hash1, hash2 string) string {
@@ -227,7 +283,7 @@ func sendWebhook(url string, content string) {
 }
 
 func isTextFile(filename string) bool {
-	extensions := []string{".txt", ".md", ".go", ".py", ".js", ".html", ".css", ".json", ".xml", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf"}
+	extensions := []string{".txt", ".md", ".go", ".py", ".js", ".html", ".css", ".json", ".xml", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".php"}
 	ext := strings.ToLower(filepath.Ext(filename))
 	for _, validExt := range extensions {
 		if ext == validExt {
@@ -237,13 +293,13 @@ func isTextFile(filename string) bool {
 	return false
 }
 
-func getCriticalReview(config Config, commitInfo string, fileContents map[string]string) string {
+func getCriticalReview(config Config, commitInfo CommitInfo, fileContents map[string]string) string {
 	fileContentStr := ""
 	for file, content := range fileContents {
 		fileContentStr += fmt.Sprintf("\n--- %s ---\n%s\n", file, content)
 	}
 
-	prompt := fmt.Sprintf(config.ReviewPrompt, commitInfo, fileContentStr)
+	prompt := fmt.Sprintf(config.ReviewPrompt, commitInfo.Message, fileContentStr)
 
 	if config.System != "" {
 		prompt = config.System + "\n\n" + prompt
@@ -344,8 +400,13 @@ func addFileLinks(review string, files []string) string {
 	return review
 }
 
-func getCommitMessages(hash1, hash2 string) string {
-	cmd := exec.Command("git", "log", "--pretty=format:%H %s", hash2+"..."+hash1)
+func getCommitMessages(hash1, hash2 string, holdstrict bool) []string {
+	var cmd *exec.Cmd
+	if (holdstrict) {
+		cmd = exec.Command("git", "log", "--pretty=format:%H %s", hash2+"..."+hash1)
+	} else {
+		cmd = exec.Command("git", "log", "-10", "--pretty=format:%H %s", hash1)
+	}
 	output, err := cmd.Output()
 	if err != nil {
 		fmt.Println("Error getting commit messages:", err)
@@ -353,24 +414,36 @@ func getCommitMessages(hash1, hash2 string) string {
 	}
 
 	commits := strings.Split(string(output), "\n")
+
+	if holdstrict {
+		return commits 
+	}
+
 	var messages strings.Builder
 
+	// go over all commits 
 	for _, commit := range commits {
 		parts := strings.SplitN(commit, " ", 2)
 		if len(parts) == 2 {
-			commitHash := parts[0]
-			commitMessage := parts[1]
-			if strings.HasPrefix(commitMessage, "Merge ") {
-				mergeCommits := getMergeCommits(commitHash)
-				messages.WriteString(fmt.Sprintf("%s %s\n", commitHash, commitMessage))
-				messages.WriteString(mergeCommits)
-			} else {
-				messages.WriteString(fmt.Sprintf("%s %s\n", commitHash, commitMessage))
+			if strings.HasPrefix(parts[1], "Merge ") {
+				continue
 			}
+			messages.WriteString(fmt.Sprintf("%s %s\n", parts[0], parts[1]))
 		}
 	}
 
-	return messages.String()
+	// now return the top 2 commits; 
+	commits = strings.Split(messages.String(), "\n")
+	if (len(commits) >= 2) {
+		return []string{commits[0], commits[1]}
+	}
+
+	log.Fatal("No parent commits found, this must the first commit in the branch")
+	os.Exit(0) // not an error
+
+	return []string{}
+
+	
 }
 
 func getMergeCommits(mergeHash string) string {
@@ -380,6 +453,9 @@ func getMergeCommits(mergeHash string) string {
 		fmt.Println("Error getting merge commits:", err)
 		return ""
 	}
+
+	fmt.Println("merge hashes", string(output))
+	os.Exit(1)
 
 	commits := strings.Split(string(output), "\n")
 	var messages strings.Builder
