@@ -1,0 +1,34 @@
+func loadConfig() Config {
+	// Load .env file if it exists
+	godotenv.Load()
+
+	webhook := flag.String("webhook", "", "Webhook URL (optional)")
+	system := flag.String("system", "", "System prompt")
+	filesPrompt := flag.String("files-prompt", "", "Custom files prompt")
+	reviewPrompt := flag.String("review-prompt", "", "Custom review prompt")
+	envFile := flag.String("env", "", "Path to custom .env file")
+	// reviewHash := flag.String("review-hash", "", "Git hash to review (optional)")
+	var reviewHashes multiStringFlag
+	flag.Var(&reviewHashes, "review-hashes", "Two git hashes to review against each other (optional)")
+
+	flag.Parse()
+
+	// Load custom .env file if provided
+	if *envFile != "" {
+		godotenv.Load(*envFile)
+	}
+
+	config := Config{
+		BaseURL:      getEnv("OR_BASE", ""),
+		Token:        getEnv("OR_TOKEN", ""),
+		LowLLM:       getEnv("OR_LOW", ""),
+		HighLLM:      getEnv("OR_HIGH", ""),
+		Webhook:      *webhook,
+		System:       *system,
+		FilesPrompt:  getPrompt("filesprompt.txt", *filesPrompt),
+		ReviewPrompt: getPrompt("reviewprompt.txt", *reviewPrompt),
+	}
+
+	return config
+}
+

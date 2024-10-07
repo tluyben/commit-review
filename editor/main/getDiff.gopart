@@ -1,0 +1,10 @@
+func getDiff(hash1, hash2 string) string {
+	cmd := exec.Command("git", "diff", hash2, hash1, "--", ".")
+	output, err := cmd.Output()
+	if err != nil {
+		fmt.Println("Error getting commit diff:", err)
+		os.Exit(1)
+	}
+	return string(output)
+}
+

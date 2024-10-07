@@ -1,0 +1,23 @@
+func getCommitInfo(config Config) string {
+	var hash1, hash2 string
+	// reviewHash := flag.Lookup("review-hash").Value.String()
+	reviewHashes := flag.Lookup("review-hashes").Value.(*multiStringFlag)
+
+	if len(*reviewHashes) == 2 {
+		hash1, hash2 = (*reviewHashes)[0], (*reviewHashes)[1]
+	} else if len(*reviewHashes) == 1 {
+		hash1 = (*reviewHashes)[0]
+		hash2 = getParentCommit(hash1)
+	} else {
+		hash1 = getLastCommitHash()
+		hash2 = getParentCommit(hash1)
+	}
+
+	fmt.Println("Reviewing commits:", hash1, hash2)
+
+	diff := getDiff(hash1, hash2)
+	commitMessage := getCommitMessage(hash1)
+
+	return fmt.Sprintf("Commit: %s\n\nMessage: %s\n\nDiff:\n%s", hash1, commitMessage, diff)
+}
+

@@ -1,0 +1,5 @@
+func (m *multiStringFlag) Set(value string) error {
+	*m = append(*m, value)
+	return nil
+}
+

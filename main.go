@@ -31,6 +31,8 @@ type Config struct {
 	ReviewPrompt string
 }
 
+type multiStringFlag []string
+
 func main() {
 	config := loadConfig()
 
@@ -58,97 +60,11 @@ func main() {
 	}
 }
 
-func loadConfig() Config {
-	// Load .env file if it exists
-	godotenv.Load()
-
-	webhook := flag.String("webhook", "", "Webhook URL (optional)")
-	system := flag.String("system", "", "System prompt")
-	filesPrompt := flag.String("files-prompt", "", "Custom files prompt")
-	reviewPrompt := flag.String("review-prompt", "", "Custom review prompt")
-	envFile := flag.String("env", "", "Path to custom .env file")
-	// reviewHash := flag.String("review-hash", "", "Git hash to review (optional)")
-	var reviewHashes multiStringFlag
-	flag.Var(&reviewHashes, "review-hashes", "Two git hashes to review against each other (optional)")
-
-	flag.Parse()
-
-	// Load custom .env file if provided
-	if *envFile != "" {
-		godotenv.Load(*envFile)
-	}
-
-	config := Config{
-		BaseURL:      getEnv("OR_BASE", ""),
-		Token:        getEnv("OR_TOKEN", ""),
-		LowLLM:       getEnv("OR_LOW", ""),
-		HighLLM:      getEnv("OR_HIGH", ""),
-		Webhook:      *webhook,
-		System:       *system,
-		FilesPrompt:  getPrompt("filesprompt.txt", *filesPrompt),
-		ReviewPrompt: getPrompt("reviewprompt.txt", *reviewPrompt),
-	}
-
-	return config
-}
-
-type multiStringFlag []string
-
-func (m *multiStringFlag) String() string {
-	return strings.Join(*m, ",")
-}
-
-func (m *multiStringFlag) Set(value string) error {
-	*m = append(*m, value)
-	return nil
-}
-
-func getPrompt(embeddedFile, customPrompt string) string {
-	if customPrompt != "" {
-		content, err := os.ReadFile(customPrompt)
-		if err != nil {
-			fmt.Printf("Error reading custom prompt file: %v\n", err)
-			os.Exit(1)
-		}
-		return string(content)
-	}
-
-	content, err := embeddedFiles.ReadFile(embeddedFile)
-	if err != nil {
-		fmt.Printf("Error reading embedded file: %v\n", err)
-		os.Exit(1)
-	}
-	return string(content)
-}
-
 func getEnv(key, fallback string) string {
 	if value, exists := os.LookupEnv(key); exists {
 		return value
 	}
 	return fallback
-}
-
-func getCommitInfo(config Config) string {
-	var hash1, hash2 string
-	// reviewHash := flag.Lookup("review-hash").Value.String()
-	reviewHashes := flag.Lookup("review-hashes").Value.(*multiStringFlag)
-
-	if len(*reviewHashes) == 2 {
-		hash1, hash2 = (*reviewHashes)[0], (*reviewHashes)[1]
-	} else if len(*reviewHashes) == 1 {
-		hash1 = (*reviewHashes)[0]
-		hash2 = getParentCommit(hash1)
-	} else {
-		hash1 = getLastCommitHash()
-		hash2 = getParentCommit(hash1)
-	}
-
-	fmt.Println("Reviewing commits:", hash1, hash2)
-
-	diff := getDiff(hash1, hash2)
-	commitMessage := getCommitMessage(hash1)
-
-	return fmt.Sprintf("Commit: %s\n\nMessage: %s\n\nDiff:\n%s", hash1, commitMessage, diff)
 }
 
 func getLastCommitHash() string {
@@ -159,26 +75,6 @@ func getLastCommitHash() string {
 		os.Exit(1)
 	}
 	return strings.TrimSpace(string(output))
-}
-
-func getParentCommit(hash string) string {
-	cmd := exec.Command("git", "rev-parse", hash+"^")
-	output, err := cmd.Output()
-	if err != nil {
-		fmt.Println("Error getting parent commit:", cmd, err)
-		os.Exit(1)
-	}
-	return strings.TrimSpace(string(output))
-}
-
-func getDiff(hash1, hash2 string) string {
-	cmd := exec.Command("git", "diff", hash2, hash1, "--", ".")
-	output, err := cmd.Output()
-	if err != nil {
-		fmt.Println("Error getting commit diff:", err)
-		os.Exit(1)
-	}
-	return string(output)
 }
 
 func getCommitMessage(hash string) string {
@@ -217,45 +113,6 @@ func getFilesToReview(config Config, commitInfo string) []string {
 	return validFiles
 }
 
-func isTextFile(filename string) bool {
-	extensions := []string{".txt", ".md", ".go", ".py", ".js", ".html", ".css", ".json", ".xml", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf"}
-	ext := strings.ToLower(filepath.Ext(filename))
-	for _, validExt := range extensions {
-		if ext == validExt {
-			return true
-		}
-	}
-	return false
-}
-
-func readFiles(files []string) map[string]string {
-	contents := make(map[string]string)
-	for _, file := range files {
-		content, err := os.ReadFile(file)
-		if err != nil {
-			fmt.Printf("Error reading file %s: %v\n", file, err)
-			continue
-		}
-		contents[file] = string(content)
-	}
-	return contents
-}
-
-func getCriticalReview(config Config, commitInfo string, fileContents map[string]string) string {
-	fileContentStr := ""
-	for file, content := range fileContents {
-		fileContentStr += fmt.Sprintf("\n--- %s ---\n%s\n", file, content)
-	}
-
-	prompt := fmt.Sprintf(config.ReviewPrompt, commitInfo, fileContentStr)
-
-	if config.System != "" {
-		prompt = config.System + "\n\n" + prompt
-	}
-
-	return callLLM(config, config.HighLLM, prompt)
-}
-
 func callLLM(config Config, model string, prompt string) string {
 	_config := openai.DefaultConfig(config.Token)
 	_config.BaseURL = config.BaseURL
@@ -282,6 +139,82 @@ func callLLM(config Config, model string, prompt string) string {
 	return resp.Choices[0].Message.Content
 }
 
+func loadConfig() Config {
+	// Load .env file if it exists
+	godotenv.Load()
+
+	webhook := flag.String("webhook", "", "Webhook URL (optional)")
+	system := flag.String("system", "", "System prompt")
+	filesPrompt := flag.String("files-prompt", "", "Custom files prompt")
+	reviewPrompt := flag.String("review-prompt", "", "Custom review prompt")
+	envFile := flag.String("env", "", "Path to custom .env file")
+	// reviewHash := flag.String("review-hash", "", "Git hash to review (optional)")
+	var reviewHashes multiStringFlag
+	flag.Var(&reviewHashes, "review-hashes", "Two git hashes to review against each other (optional)")
+
+	flag.Parse()
+
+	// Load custom .env file if provided
+	if *envFile != "" {
+		godotenv.Load(*envFile)
+	}
+
+	config := Config{
+		BaseURL:      getEnv("OR_BASE", ""),
+		Token:        getEnv("OR_TOKEN", ""),
+		LowLLM:       getEnv("OR_LOW", ""),
+		HighLLM:      getEnv("OR_HIGH", ""),
+		Webhook:      *webhook,
+		System:       *system,
+		FilesPrompt:  getPrompt("filesprompt.txt", *filesPrompt),
+		ReviewPrompt: getPrompt("reviewprompt.txt", *reviewPrompt),
+	}
+
+	return config
+}
+
+func (m *multiStringFlag) String() string {
+	return strings.Join(*m, ",")
+}
+
+func (m *multiStringFlag) Set(value string) error {
+	*m = append(*m, value)
+	return nil
+}
+
+func getCommitInfo(config Config) string {
+	var hash1, hash2 string
+	// reviewHash := flag.Lookup("review-hash").Value.String()
+	reviewHashes := flag.Lookup("review-hashes").Value.(*multiStringFlag)
+
+	if len(*reviewHashes) == 2 {
+		hash1, hash2 = (*reviewHashes)[0], (*reviewHashes)[1]
+	} else if len(*reviewHashes) == 1 {
+		hash1 = (*reviewHashes)[0]
+		hash2 = getParentCommit(hash1)
+	} else {
+		hash1 = getLastCommitHash()
+		hash2 = getParentCommit(hash1)
+	}
+
+	fmt.Println("Reviewing commits:", hash1, hash2)
+
+	diff := getDiff(hash1, hash2)
+	commitMessage := getCommitMessage(hash1)
+
+	return fmt.Sprintf("Commit: %s\n\nMessage: %s\n\nDiff:\n%s", hash1, commitMessage, diff)
+}
+
+func getDiff(hash1, hash2 string) string {
+	cmd := exec.Command("git", "diff", hash2, hash1, "--", ".")
+	output, err := cmd.Output()
+	if err != nil {
+		fmt.Println("Error getting commit diff:", err)
+		os.Exit(1)
+	}
+	return string(output)
+}
+
 func sendWebhook(url string, content string) {
 	resp, err := http.Post(url, "text/plain", bytes.NewBufferString(content))
 	if err != nil {
@@ -291,6 +224,73 @@ func sendWebhook(url string, content string) {
 	defer resp.Body.Close()
 
 	fmt.Println("Webhook sent successfully")
+}
+
+func isTextFile(filename string) bool {
+	extensions := []string{".txt", ".md", ".go", ".py", ".js", ".html", ".css", ".json", ".xml", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf"}
+	ext := strings.ToLower(filepath.Ext(filename))
+	for _, validExt := range extensions {
+		if ext == validExt {
+			return true
+		}
+	}
+	return false
+}
+
+func getCriticalReview(config Config, commitInfo string, fileContents map[string]string) string {
+	fileContentStr := ""
+	for file, content := range fileContents {
+		fileContentStr += fmt.Sprintf("\n--- %s ---\n%s\n", file, content)
+	}
+
+	prompt := fmt.Sprintf(config.ReviewPrompt, commitInfo, fileContentStr)
+
+	if config.System != "" {
+		prompt = config.System + "\n\n" + prompt
+	}
+
+	return callLLM(config, config.HighLLM, prompt)
+}
+
+func getPrompt(embeddedFile, customPrompt string) string {
+	if customPrompt != "" {
+		content, err := os.ReadFile(customPrompt)
+		if err != nil {
+			fmt.Printf("Error reading custom prompt file: %v\n", err)
+			os.Exit(1)
+		}
+		return string(content)
+	}
+
+	content, err := embeddedFiles.ReadFile(embeddedFile)
+	if err != nil {
+		fmt.Printf("Error reading embedded file: %v\n", err)
+		os.Exit(1)
+	}
+	return string(content)
+}
+
+func getParentCommit(hash string) string {
+	cmd := exec.Command("git", "rev-parse", hash+"^")
+	output, err := cmd.Output()
+	if err != nil {
+		fmt.Println("Error getting parent commit:", cmd, err)
+		os.Exit(1)
+	}
+	return strings.TrimSpace(string(output))
+}
+
+func readFiles(files []string) map[string]string {
+	contents := make(map[string]string)
+	for _, file := range files {
+		content, err := os.ReadFile(file)
+		if err != nil {
+			fmt.Printf("Error reading file %s: %v\n", file, err)
+			continue
+		}
+		contents[file] = string(content)
+	}
+	return contents
 }
 
 func addFileLinks(review string, files []string) string {
@@ -342,4 +342,62 @@ func addFileLinks(review string, files []string) string {
 		return review + linksSection
 	}
 	return review
+}
+
+func getCommitMessages(hash1, hash2 string) string {
+	cmd := exec.Command("git", "log", "--pretty=format:%H %s", hash2+"..."+hash1)
+	output, err := cmd.Output()
+	if err != nil {
+		fmt.Println("Error getting commit messages:", err)
+		os.Exit(1)
+	}
+
+	commits := strings.Split(string(output), "\n")
+	var messages strings.Builder
+
+	for _, commit := range commits {
+		parts := strings.SplitN(commit, " ", 2)
+		if len(parts) == 2 {
+			commitHash := parts[0]
+			commitMessage := parts[1]
+			if strings.HasPrefix(commitMessage, "Merge ") {
+				mergeCommits := getMergeCommits(commitHash)
+				messages.WriteString(fmt.Sprintf("%s %s\n", commitHash, commitMessage))
+				messages.WriteString(mergeCommits)
+			} else {
+				messages.WriteString(fmt.Sprintf("%s %s\n", commitHash, commitMessage))
+			}
+		}
+	}
+
+	return messages.String()
+}
+
+func getMergeCommits(mergeHash string) string {
+	cmd := exec.Command("git", "log", "--pretty=format:%H %s", mergeHash+"^..."+mergeHash+"^2")
+	output, err := cmd.Output()
+	if err != nil {
+		fmt.Println("Error getting merge commits:", err)
+		return ""
+	}
+
+	commits := strings.Split(string(output), "\n")
+	var messages strings.Builder
+
+	for _, commit := range commits {
+		parts := strings.SplitN(commit, " ", 2)
+		if len(parts) == 2 {
+			commitHash := parts[0]
+			commitMessage := parts[1]
+			if strings.HasPrefix(commitMessage, "Merge ") {
+				subMergeCommits := getMergeCommits(commitHash)
+				messages.WriteString(fmt.Sprintf("  %s %s\n", commitHash, commitMessage))
+				messages.WriteString(subMergeCommits)
+			} else {
+				messages.WriteString(fmt.Sprintf("  %s %s\n", commitHash, commitMessage))
+			}
+		}
+	}
+
+	return messages.String()
 }

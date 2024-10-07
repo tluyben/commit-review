@@ -1,0 +1,19 @@
+//go:embed filesprompt.txt reviewprompt.txt
+var embeddedFiles embed.FS
+
+
+type Config struct {
+	BaseURL      string
+	Token        string
+	LowLLM       string
+	HighLLM      string
+	Webhook      string
+	System       string
+	FilesPrompt  string
+	ReviewPrompt string
+}
+
+
+type multiStringFlag []string
+
+

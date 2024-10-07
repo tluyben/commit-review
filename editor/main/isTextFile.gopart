@@ -1,0 +1,11 @@
+func isTextFile(filename string) bool {
+	extensions := []string{".txt", ".md", ".go", ".py", ".js", ".html", ".css", ".json", ".xml", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf"}
+	ext := strings.ToLower(filepath.Ext(filename))
+	for _, validExt := range extensions {
+		if ext == validExt {
+			return true
+		}
+	}
+	return false
+}
+

@@ -1,0 +1,19 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"embed"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
+	"github.com/joho/godotenv"
+	"github.com/sashabaranov/go-openai"
+)
+

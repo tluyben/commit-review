@@ -1,0 +1,26 @@
+func getFilesToReview(config Config, commitInfo string) []string {
+	prompt := fmt.Sprintf(config.FilesPrompt, commitInfo)
+
+	response := callLLM(config, config.LowLLM, prompt)
+
+	// Remove backticks if present
+	response = strings.Trim(response, "`")
+
+	var files []string
+	err := json.Unmarshal([]byte(response), &files)
+	if err != nil {
+		fmt.Println("Error parsing LLM response:", err)
+		os.Exit(1)
+	}
+
+	// Filter out non-text files
+	validFiles := []string{}
+	for _, file := range files {
+		if isTextFile(file) {
+			validFiles = append(validFiles, file)
+		}
+	}
+
+	return validFiles
+}
+

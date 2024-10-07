@@ -1,0 +1,28 @@
+func getCommitMessages(hash1, hash2 string) string {
+	cmd := exec.Command("git", "log", "--pretty=format:%H %s", hash2+"..."+hash1)
+	output, err := cmd.Output()
+	if err != nil {
+		fmt.Println("Error getting commit messages:", err)
+		os.Exit(1)
+	}
+
+	commits := strings.Split(string(output), "\n")
+	var messages strings.Builder
+
+	for _, commit := range commits {
+		parts := strings.SplitN(commit, " ", 2)
+		if len(parts) == 2 {
+			commitHash := parts[0]
+			commitMessage := parts[1]
+			if strings.HasPrefix(commitMessage, "Merge ") {
+				mergeCommits := getMergeCommits(commitHash)
+				messages.WriteString(fmt.Sprintf("%s %s\n", commitHash, commitMessage))
+				messages.WriteString(mergeCommits)
+			} else {
+				messages.WriteString(fmt.Sprintf("%s %s\n", commitHash, commitMessage))
+			}
+		}
+	}
+
+	return messages.String()
+}

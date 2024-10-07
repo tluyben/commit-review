@@ -1,0 +1,26 @@
+func callLLM(config Config, model string, prompt string) string {
+	_config := openai.DefaultConfig(config.Token)
+	_config.BaseURL = config.BaseURL
+	client := openai.NewClientWithConfig(_config)
+
+	resp, err := client.CreateChatCompletion(
+		context.Background(),
+		openai.ChatCompletionRequest{
+			Model: model,
+			Messages: []openai.ChatCompletionMessage{
+				{
+					Role:    openai.ChatMessageRoleUser,
+					Content: prompt,
+				},
+			},
+		},
+	)
+
+	if err != nil {
+		fmt.Printf("ChatCompletion error: %v\n", err)
+		return ""
+	}
+
+	return resp.Choices[0].Message.Content
+}
+

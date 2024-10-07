@@ -1,0 +1,10 @@
+func getCommitMessage(hash string) string {
+	cmd := exec.Command("git", "log", "-1", "--pretty=format:%B", hash)
+	output, err := cmd.Output()
+	if err != nil {
+		fmt.Println("Error getting commit message:", err)
+		os.Exit(1)
+	}
+	return string(output)
+}
+

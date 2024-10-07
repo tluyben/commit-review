@@ -1,0 +1,27 @@
+func main() {
+	config := loadConfig()
+
+	// Get the commit info based on flags
+	commitInfo := getCommitInfo(config)
+
+	// Ask the LOW LLM for files to review
+	filesToReview := getFilesToReview(config, commitInfo)
+
+	// Read the files content
+	fileContents := readFiles(filesToReview)
+
+	// Ask the HIGH LLM for a critical review
+	review := getCriticalReview(config, commitInfo, fileContents)
+
+	// Add links to changed files
+	review = addFileLinks(review, filesToReview)
+
+	// Print the result to stdout
+	fmt.Println(review)
+
+	// Send the result to the webhook if available
+	if config.Webhook != "" {
+		sendWebhook(config.Webhook, review)
+	}
+}
+

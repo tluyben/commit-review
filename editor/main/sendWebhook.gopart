@@ -1,0 +1,11 @@
+func sendWebhook(url string, content string) {
+	resp, err := http.Post(url, "text/plain", bytes.NewBufferString(content))
+	if err != nil {
+		fmt.Println("Error sending webhook:", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	fmt.Println("Webhook sent successfully")
+}
+

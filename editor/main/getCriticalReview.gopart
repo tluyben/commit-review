@@ -1,0 +1,15 @@
+func getCriticalReview(config Config, commitInfo string, fileContents map[string]string) string {
+	fileContentStr := ""
+	for file, content := range fileContents {
+		fileContentStr += fmt.Sprintf("\n--- %s ---\n%s\n", file, content)
+	}
+
+	prompt := fmt.Sprintf(config.ReviewPrompt, commitInfo, fileContentStr)
+
+	if config.System != "" {
+		prompt = config.System + "\n\n" + prompt
+	}
+
+	return callLLM(config, config.HighLLM, prompt)
+}
+

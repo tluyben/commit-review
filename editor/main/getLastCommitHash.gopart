@@ -1,0 +1,10 @@
+func getLastCommitHash() string {
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	output, err := cmd.Output()
+	if err != nil {
+		fmt.Println("Error getting last commit hash:", err)
+		os.Exit(1)
+	}
+	return strings.TrimSpace(string(output))
+}
+

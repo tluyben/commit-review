@@ -1,0 +1,4 @@
+func (m *multiStringFlag) String() string {
+	return strings.Join(*m, ",")
+}
+
